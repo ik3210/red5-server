@@ -27,6 +27,7 @@
         <property name="threadNamePrefix" value="RTMPConnectionScheduler-" />
     </bean>
     
+<!--
     <bean id="messageExecutor" class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
         <property name="corePoolSize" value="${rtmp.executor.core_pool_size}" />
         <property name="maxPoolSize" value="${rtmp.executor.max_pool_size}" />
@@ -42,25 +43,31 @@
         <property name="waitForTasksToCompleteOnShutdown" value="true" />
         <property name="threadNamePrefix" value="DeadlockGuardScheduler-" />
     </bean>
-    
+-->
+
     <!-- RTMP connection manager -->
     <bean id="rtmpConnManager" class="org.red5.server.net.rtmp.RTMPConnManager" />
-    
-    <bean id="rtmpCodecFactory" class="org.red5.server.net.rtmp.codec.RTMPMinaCodecFactory" />
-    
+
+    <!-- RTMP Decoding -->
+    <!-- Use injection to set the max packet size -->
+    <bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+        <property name="staticMethod">
+            <value>org.red5.server.net.rtmp.codec.RTMPProtocolDecoder.setMaxPacketSize</value>
+        </property>
+        <property name="arguments" value="${rtmp.max_packet_size}"/>
+    </bean>
+
     <!-- RTMP Handler -->
     <bean id="rtmpHandler" class="org.red5.server.net.rtmp.RTMPHandler">
         <property name="server" ref="red5.server" />
         <property name="statusObjectService" ref="statusObjectService" />
-        <!-- Enable this if you want to allow global scope connections
-        <property name="globalScopeConnectionAllowed" value="true" />
-        -->
+        <!-- Enable this to allow unvalidated connections -->
+        <property name="unvalidatedConnectionAllowed" value="true" />
     </bean>
     
     <!-- RTMP Mina IO Handler -->
     <bean id="rtmpMinaIoHandler" class="org.red5.server.net.rtmp.RTMPMinaIoHandler">
         <property name="handler" ref="rtmpHandler" />
-        <property name="codecFactory" ref="rtmpCodecFactory" />
     </bean>
     
     <!-- RTMP Mina Transport -->
@@ -98,10 +105,10 @@
     <bean id="rtmpMinaConnection" scope="prototype" class="org.red5.server.net.rtmp.RTMPMinaConnection">
         <!-- Executor for scheduled tasks -->
         <property name="scheduler" ref="rtmpScheduler" />
-        <!-- Executor for incoming messages -->
+<!-- 
         <property name="executor" ref="messageExecutor" />
-        <!-- Deadlock guard executor -->
         <property name="deadlockGuardScheduler" ref="deadlockGuardScheduler" />
+-->
         <!-- Ping clients every X ms. Set to 0 to disable ghost detection code. -->
         <property name="pingInterval" value="${rtmp.ping_interval}" />
         <!-- Disconnect client after X ms of not responding. -->
@@ -153,10 +160,10 @@
     <bean id="rtmptConnection" scope="prototype" class="org.red5.server.net.rtmpt.RTMPTConnection">
         <!-- Executor for scheduled tasks -->
         <property name="scheduler" ref="rtmpScheduler" />
-        <!-- Executor for incoming messages -->
+<!--
         <property name="executor" ref="messageExecutor" />
-        <!-- Deadlock guard executor -->
         <property name="deadlockGuardScheduler" ref="deadlockGuardScheduler" />
+-->
         <!-- Ping clients every X ms. Set to 0 to disable ghost detection code. -->
         <property name="pingInterval" value="${rtmpt.ping_interval}" />
         <!-- Disconnect client after X ms of not responding. -->
@@ -191,26 +198,17 @@
 
     <bean id="rtmpsMinaIoHandler" class="org.red5.server.net.rtmps.RTMPSMinaIoHandler">
         <property name="handler" ref="rtmpHandler" />
-        <property name="codecFactory" ref="rtmpCodecFactory" />
         <property name="keystorePassword" value="${rtmps.keystorepass}" />
         <property name="keystoreFile" value="${rtmps.keystorefile}" />
         <property name="truststorePassword" value="${rtmps.truststorepass}" />
         <property name="truststoreFile" value="${rtmps.truststorefile}" />
-        <property name="useClientMode" value="false" />
-        <property name="needClientAuth" value="false" />
         <property name="cipherSuites">
             <array>
                 <value>TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</value>
-                <value>TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384</value>
-                
                 <value>TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA</value>
-                <value>TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384</value>
-                <value>TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA</value>
                 <value>TLS_ECDHE_RSA_WITH_RC4_128_SHA</value>
                 <value>TLS_RSA_WITH_AES_128_CBC_SHA256</value>
                 <value>TLS_RSA_WITH_AES_128_CBC_SHA</value>
-                <value>TLS_RSA_WITH_AES_256_CBC_SHA256</value>
-                <value>TLS_RSA_WITH_AES_256_CBC_SHA</value>
                 <value>SSL_RSA_WITH_RC4_128_SHA</value>
             </array>
         </property>
@@ -235,19 +233,18 @@
     </bean>
 -->
     <!-- Enable when you need it. - - >
-        <bean id="rtmpProxyTransport" class="org.red5.server.net.rtmp.RTMPMinaTransport" init-method="start" destroy-method="stop">
-                <property name="ioHandler" ref="debugProxyIoHandler" />
-                <property name="address" value="${proxy.source_host}" />
-                <property name="port" value="${proxy.source_port}" />
-                <property name="ioThreads" value="${rtmp.io_threads}" />
-                <property name="tcpNoDelay" value="${rtmp.tcp_nodelay}" />
-        </bean>
+    <bean id="rtmpProxyTransport" class="org.red5.server.net.rtmp.RTMPMinaTransport" init-method="start" destroy-method="stop">
+        <property name="ioHandler" ref="debugProxyIoHandler" />
+        <property name="address" value="${proxy.source_host}" />
+        <property name="port" value="${proxy.source_port}" />
+        <property name="ioThreads" value="${rtmp.io_threads}" />
+        <property name="tcpNoDelay" value="${rtmp.tcp_nodelay}" />
+    </bean>
     
-        <bean id="debugProxyIoHandler"
-                class="org.red5.server.net.proxy.DebugProxyHandler">
-                <property name="codecFactory" ref="rtmpCodecFactory" />
-                <property name="forward" value="${proxy.destination_host}:${proxy.destination_port}" />
-                <property name="dumpTo" value="./webapps/dump/" />
-        </bean>
+    <bean id="debugProxyIoHandler" class="org.red5.server.net.proxy.DebugProxyHandler">
+        <property name="codecFactory" ref="rtmpCodecFactory" />
+        <property name="forward" value="${proxy.destination_host}:${proxy.destination_port}" />
+        <property name="dumpTo" value="./webapps/dump/" />
+    </bean>
 -->
 </beans>
